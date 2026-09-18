@@ -2,13 +2,17 @@ import type { AuthUser } from "@lela/shared";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
+function apiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
+
 export interface LoginResponse {
   user: AuthUser;
   token: string;
 }
 
 export async function apiRequest<T>(path: string, token?: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -38,7 +42,7 @@ export async function downloadReport(moduleKey: string, token: string, format: "
 }
 
 export async function downloadApiFile(path: string, token: string, fallbackFilename: string) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     headers: {
       Authorization: `Bearer ${token}`
     }

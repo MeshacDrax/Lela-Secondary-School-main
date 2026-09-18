@@ -34,7 +34,7 @@ Required in production:
 
 - `NODE_ENV=production`
 - `PORT`
-- `WEB_ORIGIN`
+- `WEB_ORIGIN` (one origin or comma-separated production/custom-domain origins)
 - `JWT_SECRET`
 - `DATABASE_URL`
 
@@ -67,11 +67,17 @@ in `api/[...path].ts`.
 
 1. Import the repository into Vercel with the repository root as the project root.
 2. Keep the generated build settings from `vercel.json`.
-3. Add `JWT_SECRET` and `WEB_ORIGIN` in the Vercel environment settings. Set
-	`DATABASE_URL` when connecting the Prisma schema to PostgreSQL.
+3. Add `JWT_SECRET` and `WEB_ORIGIN` in the Vercel environment settings.
+	`JWT_SECRET` must be at least 16 characters and different from the
+	development default. Set `DATABASE_URL` when connecting the Prisma schema
+	to PostgreSQL.
 4. Leave `VITE_API_BASE_URL` empty for the same-project API, or set it to an
 	externally deployed API origin.
 5. Deploy. The frontend and API will share the same Vercel domain.
+
+Vercel's automatic deployment URL is allowed through `VERCEL_URL`. Add the
+production Vercel URL and any custom domain to `WEB_ORIGIN` for production
+requests from those domains.
 
 ## Recommended Production Hardening
 
