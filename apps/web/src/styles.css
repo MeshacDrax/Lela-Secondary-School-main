@@ -111,21 +111,17 @@ button {
   color: white;
 }
 
-.large-crest,
-.crest {
+.school-logo {
   display: grid;
   place-items: center;
-  border: 2px solid var(--gold);
-  color: var(--gold);
-  background: rgba(255, 255, 255, 0.1);
-  font-weight: 900;
+  object-fit: contain;
+  background: white;
 }
 
-.large-crest {
+.school-logo-large {
   width: 92px;
   height: 92px;
   border-radius: 8px;
-  font-size: 34px;
   margin-bottom: 26px;
 }
 
@@ -281,12 +277,10 @@ button {
   border-bottom: 1px solid var(--line);
 }
 
-.crest {
+.school-logo-small {
   width: 44px;
   height: 44px;
   border-radius: 8px;
-  background: var(--green);
-  color: white;
 }
 
 .brand-block strong,
@@ -960,6 +954,75 @@ tr:last-child td {
   padding: 48px;
   color: var(--muted);
   text-align: center;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 28, 19, 0.48);
+}
+
+.action-dialog {
+  width: min(520px, 100%);
+  max-height: min(720px, 94vh);
+  overflow-y: auto;
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.dialog-header,
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-header h2 {
+  margin: 0;
+}
+
+.dialog-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.dialog-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.dialog-fields input,
+.dialog-fields select,
+.dialog-fields textarea {
+  width: 100%;
+  min-height: 42px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog-fields textarea {
+  min-height: 96px;
+}
+
+.record-detail {
+  position: relative;
 }
 
 @media (max-width: 1200px) {

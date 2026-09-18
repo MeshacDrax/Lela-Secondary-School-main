@@ -41,6 +41,10 @@ export async function downloadReport(moduleKey: string, token: string, format: "
   await downloadApiFile(`/api/reports/${moduleKey}?format=${format}&q=${encodeURIComponent(query)}`, token, `${moduleKey}-report.${format === "pdf" ? "pdf" : "csv"}`);
 }
 
+export async function downloadReportCard(student: string, token: string) {
+  await downloadApiFile(`/api/reports/report-card?student=${encodeURIComponent(student)}`, token, "report-card.pdf");
+}
+
 export async function downloadApiFile(path: string, token: string, fallbackFilename: string) {
   const response = await fetch(apiUrl(path), {
     headers: {

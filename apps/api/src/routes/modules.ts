@@ -142,6 +142,51 @@ router.get("/search", requireAuth, (req, res, next) => {
   }
 });
 
+router.post("/communications", requireAuth, authorize(staff), (req, res, next) => {
+  try {
+    const { audience, title, message } = req.body;
+    if (!audience || !title || !message) {
+      throw new ApiError(400, "Audience, title, and message are required");
+    }
+
+    const announcement = {
+      id: `com-${nanoid(8)}`,
+      channel: "Portal",
+      audience,
+      title,
+      message,
+      status: "Sent",
+      sendAt: new Date().toISOString()
+    };
+    moduleData.communications.unshift(announcement);
+    notifications.unshift({ id: `not-${nanoid(8)}`, title, audience, tone: "green", unread: true });
+    res.status(201).json({ data: announcement });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/backups/check", requireAuth, authorize(["ADMIN"]), (_req, res) => {
+  const result = {
+    id: `bkp-${nanoid(8)}`,
+    type: "Verification",
+    status: "Healthy",
+    lastRun: new Date().toISOString(),
+    retention: "30 days",
+    restorePoint: "Available"
+  };
+  moduleData.backups.unshift(result);
+  auditLogs.unshift({
+    id: `log-${nanoid(8)}`,
+    actor: "System",
+    action: "Backup verification completed",
+    module: "Backups",
+    timestamp: new Date().toISOString(),
+    severity: "Success"
+  });
+  res.status(201).json({ data: result });
+});
+
 router.get("/reports/:module", requireAuth, (req, res, next) => {
   try {
     const moduleKey = req.params.module as DemoModuleKey;
@@ -178,6 +223,21 @@ router.get("/reports/:module", requireAuth, (req, res, next) => {
         count: records.length
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/reports/report-card", requireAuth, (req, res, next) => {
+  try {
+    const student = String(req.query.student ?? "Student");
+    if (!canAccess(req.user!.role, "academics")) {
+      throw new ApiError(403, "You do not have permission to generate report cards");
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${student.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-report-card.pdf"`);
+    return res.send(createSimplePdf(`${student} Report Card`, moduleData.academics));
   } catch (error) {
     next(error);
   }
@@ -278,6 +338,29 @@ router.post("/students", requireAuth, authorize(leadership), (req, res) => {
   });
 
   res.status(201).json({ data: student });
+});
+
+router.put("/students/:id", requireAuth, authorize(leadership), (req, res, next) => {
+  try {
+    const student = students.find((item) => item.id === req.params.id);
+    if (!student) {
+      throw new ApiError(404, "Student not found");
+    }
+
+    Object.assign(student, req.body);
+    auditLogs.unshift({
+      id: `log-${nanoid(8)}`,
+      actor: req.user!.name,
+      action: `Updated student ${student.name}`,
+      module: "Students",
+      timestamp: new Date().toISOString(),
+      severity: "Info"
+    });
+
+    res.json({ data: student });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post("/attendance", requireAuth, authorize(staff), (req, res) => {

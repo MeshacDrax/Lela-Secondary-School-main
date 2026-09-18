@@ -30,7 +30,7 @@ import {
   X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { apiRequest, downloadReport, login, realtimeUrl } from "./api/client";
+import { apiRequest, downloadReport, downloadReportCard, login, realtimeUrl } from "./api/client";
 import { fallbackDashboard, fallbackRecords } from "./data/fallback";
 
 type ModuleItem = {
@@ -46,6 +46,14 @@ type DashboardData = typeof fallbackDashboard & {
 
 type RecordRow = Record<string, unknown>;
 type Theme = "light" | "dark";
+type QuickAction =
+  | "Register student"
+  | "Edit student"
+  | "Record attendance"
+  | "Generate report card"
+  | "Send announcement"
+  | "Export finance report"
+  | "Run backup check";
 
 const iconMap: Record<string, LucideIcon> = {
   GraduationCap,
@@ -181,6 +189,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("System ready");
   const [loginError, setLoginError] = useState("");
+  const [action, setAction] = useState<QuickAction | null>(null);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -277,6 +286,120 @@ export default function App() {
     }
   }
 
+  async function handleQuickAction(selectedAction: QuickAction, values: Record<string, string>) {
+    if (selectedAction === "Edit student") {
+      const studentId = values.id;
+      const payload = {
+        admissionNumber: values.admissionNumber,
+        studentId: values.studentId,
+        name: values.name,
+        className: values.className,
+        stream: values.stream,
+        gender: values.gender,
+        guardian: values.guardian,
+        guardianPhone: values.guardianPhone
+      };
+
+      if (token.startsWith("offline-")) {
+        const student = fallbackRecords.students.find((record) => record.id === studentId);
+        if (student) {
+          Object.assign(student, payload);
+        }
+        setRecords([...fallbackRecords.students]);
+        setNotice("Student information updated in demo mode");
+      } else {
+        const updated = await apiRequest<RecordRow>(`/api/students/${encodeURIComponent(studentId)}`, token, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+        setRecords((current) => current.map((record) => record.id === studentId ? updated : record));
+        setNotice("Student information updated");
+      }
+      return;
+    }
+
+    if (selectedAction === "Export finance report") {
+      if (token.startsWith("offline-")) {
+        setNotice("Finance report ready in demo mode");
+      } else {
+        await downloadReport("finance", token, "excel");
+        setNotice("Finance report downloaded");
+      }
+      return;
+    }
+
+    if (selectedAction === "Generate report card") {
+      if (token.startsWith("offline-")) {
+        setNotice(`Report card ready for ${values.student}`);
+      } else {
+        await downloadReportCard(values.student, token);
+        setNotice("Report card downloaded");
+      }
+      return;
+    }
+
+    const endpoints: Record<string, string> = {
+      "Register student": "/api/students",
+      "Record attendance": "/api/attendance",
+      "Send announcement": "/api/communications",
+      "Run backup check": "/api/backups/check"
+    };
+    const payload = selectedAction === "Register student"
+      ? {
+          admissionNumber: values.admissionNumber,
+          studentId: values.studentId,
+          name: values.name,
+          className: values.className,
+          stream: values.stream,
+          gender: values.gender,
+          guardian: values.guardian,
+          guardianPhone: values.guardianPhone
+        }
+      : selectedAction === "Record attendance"
+        ? { group: values.group, present: Number(values.present), absent: Number(values.absent), late: Number(values.late), qrEnabled: values.qrEnabled === "true" }
+        : selectedAction === "Send announcement"
+          ? { audience: values.audience, title: values.title, message: values.message }
+          : {};
+
+    if (token.startsWith("offline-")) {
+      if (selectedAction === "Register student") {
+        fallbackRecords.students.unshift({
+          id: `offline-${Date.now()}`,
+          admissionNumber: values.admissionNumber,
+          studentId: values.studentId,
+          name: values.name,
+          className: values.className,
+          stream: values.stream,
+          gender: values.gender,
+          guardian: values.guardian,
+          guardianPhone: values.guardianPhone,
+          attendanceRate: 100,
+          averageScore: 0,
+          feeBalance: 0
+        });
+      }
+      if (selectedAction === "Record attendance") {
+        (fallbackRecords.attendance ??= []).unshift({ id: `offline-${Date.now()}`, date: new Date().toISOString().slice(0, 10), group: values.group, present: Number(values.present), absent: Number(values.absent), late: Number(values.late), qrEnabled: values.qrEnabled === "true" });
+      }
+      if (selectedAction === "Send announcement") {
+        (fallbackRecords.communications ??= []).unshift({ id: `offline-${Date.now()}`, channel: "Portal", audience: values.audience, title: values.title, message: values.message, status: "Sent", sendAt: new Date().toISOString() });
+      }
+      if (selectedAction === "Register student" || selectedAction === "Record attendance" || selectedAction === "Send announcement") {
+        const nextModule = selectedAction === "Register student" ? "students" : selectedAction === "Record attendance" ? "attendance" : "communications";
+        setRecords([...(fallbackRecords[nextModule] ?? [])]);
+        setActiveModule(nextModule);
+      }
+      setNotice(`${selectedAction} completed in demo mode`);
+      return;
+    }
+
+    await apiRequest(endpoints[selectedAction], token, { method: "POST", body: JSON.stringify(payload) });
+    setNotice(`${selectedAction} completed`);
+    if (selectedAction === "Register student" || selectedAction === "Record attendance" || selectedAction === "Send announcement") {
+      setActiveModule(selectedAction === "Register student" ? "students" : selectedAction === "Record attendance" ? "attendance" : "communications");
+    }
+  }
+
   if (!user || !token) {
     return <LoginScreen error={loginError} onLogin={handleLogin} theme={theme} setTheme={setTheme} />;
   }
@@ -285,7 +408,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}>
         <div className="brand-block">
-          <div className="crest">LS</div>
+          <img className="school-logo school-logo-small" src="/lela-logo.jpeg" alt="Lela Secondary School logo" />
           <div>
             <strong>Lela Secondary School</strong>
             <span>{dashboard.school.currentTerm} · {dashboard.school.academicYear}</span>
@@ -354,7 +477,7 @@ export default function App() {
 
         <main>
           {activeModule === "dashboard" ? (
-            <DashboardView data={dashboard} onOpenModule={setActiveModule} />
+            <DashboardView data={dashboard} onOpenModule={setActiveModule} onQuickAction={setAction} />
           ) : (
             <ModuleView
               module={selectedModule}
@@ -363,10 +486,25 @@ export default function App() {
               loading={loading}
               onQuery={setQuery}
               onExport={handleExport}
+              onEditStudent={async (studentId, values) => handleQuickAction("Edit student", { id: studentId, ...values })}
             />
           )}
         </main>
       </div>
+      {action ? (
+        <ActionDialog
+          action={action}
+          onClose={() => setAction(null)}
+          onSubmit={async (values) => {
+            try {
+              await handleQuickAction(action, values);
+              setAction(null);
+            } catch (error) {
+              setNotice(error instanceof Error ? error.message : "Action failed");
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -400,7 +538,7 @@ function LoginScreen({
       </button>
       <section className="login-panel">
         <div className="login-identity">
-          <div className="large-crest">LS</div>
+          <img className="school-logo school-logo-large" src="/lela-logo.jpeg" alt="Lela Secondary School logo" />
           <p className="eyebrow">Secure School Management</p>
           <h1>Lela Secondary School</h1>
           <div className="login-stats">
@@ -448,7 +586,7 @@ function LoginScreen({
   );
 }
 
-function DashboardView({ data, onOpenModule }: { data: DashboardData; onOpenModule: (module: string) => void }) {
+function DashboardView({ data, onOpenModule, onQuickAction }: { data: DashboardData; onOpenModule: (module: string) => void; onQuickAction: (action: QuickAction) => void }) {
   return (
     <div className="dashboard-grid">
       <section className="metric-grid">
@@ -487,7 +625,7 @@ function DashboardView({ data, onOpenModule }: { data: DashboardData; onOpenModu
 
       <section className="quick-grid">
         {data.quickActions.map((action) => (
-          <button className="quick-action" key={action}>
+          <button className="quick-action" key={action} onClick={() => onQuickAction(action as QuickAction)}>
             <Plus size={17} />
             {action}
           </button>
@@ -550,13 +688,106 @@ function DashboardView({ data, onOpenModule }: { data: DashboardData; onOpenModu
   );
 }
 
+function ActionDialog({ action, initialValues, onClose, onSubmit }: { action: QuickAction; initialValues?: Record<string, string>; onClose: () => void; onSubmit: (values: Record<string, string>) => Promise<void> }) {
+  const [values, setValues] = useState<Record<string, string>>({
+    admissionNumber: "",
+    studentId: "",
+    student: "Amani Were",
+    name: "",
+    className: "Form 1",
+    stream: "Green",
+    gender: "Male",
+    guardian: "",
+    guardianPhone: "",
+    group: "Form 4 Green",
+    present: "40",
+    absent: "0",
+    late: "0",
+    qrEnabled: "true",
+    audience: "Parents",
+    title: "",
+    message: "",
+    ...initialValues
+  });
+  const fields: Record<QuickAction, Array<{ key: string; label: string; type?: string; options?: string[] }>> = {
+    "Register student": [
+      { key: "admissionNumber", label: "Admission number" },
+      { key: "studentId", label: "Student ID" },
+      { key: "name", label: "Student name" },
+      { key: "className", label: "Class" },
+      { key: "stream", label: "Stream" },
+      { key: "gender", label: "Gender", type: "select", options: ["Male", "Female"] },
+      { key: "guardian", label: "Guardian name" },
+      { key: "guardianPhone", label: "Guardian phone", type: "tel" }
+    ],
+    "Edit student": [
+      { key: "admissionNumber", label: "Admission number" },
+      { key: "studentId", label: "Student ID" },
+      { key: "name", label: "Student name" },
+      { key: "className", label: "Class" },
+      { key: "stream", label: "Stream" },
+      { key: "gender", label: "Gender", type: "select", options: ["Male", "Female"] },
+      { key: "guardian", label: "Guardian name" },
+      { key: "guardianPhone", label: "Guardian phone", type: "tel" }
+    ],
+    "Record attendance": [
+      { key: "group", label: "Class or group" },
+      { key: "present", label: "Present", type: "number" },
+      { key: "absent", label: "Absent", type: "number" },
+      { key: "late", label: "Late", type: "number" }
+    ],
+    "Generate report card": [{ key: "student", label: "Student name" }],
+    "Send announcement": [
+      { key: "audience", label: "Audience" },
+      { key: "title", label: "Title" }
+    ],
+    "Export finance report": [],
+    "Run backup check": []
+  };
+  const actionFields = fields[action];
+
+  useEffect(() => {
+    if (actionFields.length === 0) {
+      void onSubmit(values);
+    }
+  }, []);
+
+  return actionFields.length === 0 ? null : (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <form className="action-dialog" onSubmit={(event) => { event.preventDefault(); void onSubmit(values); }}>
+        <div className="dialog-header">
+          <div><p className="eyebrow">Quick action</p><h2>{action}</h2></div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button>
+        </div>
+        <div className="dialog-fields">
+          {actionFields.map((field) => (
+            <label key={field.key}>
+              {field.label}
+              {field.type === "select" ? (
+                <select required value={values[field.key]} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}>
+                  {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              ) : (
+                <input required type={field.type ?? "text"} value={values[field.key]} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />
+              )}
+            </label>
+          ))}
+          {action === "Send announcement" ? <label>Message<textarea required value={values.message} onChange={(event) => setValues((current) => ({ ...current, message: event.target.value }))} /></label> : null}
+        </div>
+        <div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button type="submit" className="primary-button">{action === "Edit student" ? "Save" : "Continue"}</button></div>
+      </form>
+    </div>
+  );
+}
+
 function ModuleView({
   module,
   records,
   query,
   loading,
   onQuery,
-  onExport
+  onExport,
+  onEditStudent
 }: {
   module?: ModuleItem;
   records: RecordRow[];
@@ -564,7 +795,10 @@ function ModuleView({
   loading: boolean;
   onQuery: (query: string) => void;
   onExport: (format: "pdf" | "excel") => void;
+  onEditStudent: (studentId: string, values: Record<string, string>) => Promise<void>;
 }) {
+  const [selectedRecord, setSelectedRecord] = useState<RecordRow | null>(null);
+  const [editingStudent, setEditingStudent] = useState(false);
   const columns = useMemo(() => {
     const first = records[0] ?? {};
     return Object.keys(first).filter((key) => key !== "id").slice(0, 8);
@@ -635,7 +869,7 @@ function ModuleView({
                       <td key={column}>{formatCell(column, record[column])}</td>
                     ))}
                     <td>
-                      <button className="row-action">Open</button>
+                      <button className="row-action" onClick={() => setSelectedRecord(record)}>Open</button>
                     </td>
                   </tr>
                 ))}
@@ -644,6 +878,37 @@ function ModuleView({
           </div>
         )}
       </section>
+      {selectedRecord ? (
+        <section className="detail-panel record-detail" aria-live="polite">
+          <div className="detail-header">
+            <div><p className="eyebrow">Record details</p><h3>{String(selectedRecord.name ?? selectedRecord.student ?? selectedRecord.title ?? "Selected record")}</h3></div>
+            <button className="icon-button" onClick={() => setSelectedRecord(null)} aria-label="Close record details"><X size={18} /></button>
+          </div>
+          <div className="detail-list">
+            {Object.entries(selectedRecord).filter(([key]) => key !== "id").map(([key, value]) => (
+              <div key={key}><span>{key.replace(/([A-Z])/g, " $1")}</span><strong>{Array.isArray(value) ? value.join(", ") : String(value ?? "")}</strong></div>
+            ))}
+          </div>
+          {module?.key === "students" ? (
+            <div className="detail-actions">
+              <button onClick={() => setEditingStudent(true)}>Edit student</button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+      {editingStudent && selectedRecord ? (
+        <ActionDialog
+          action="Edit student"
+          initialValues={Object.fromEntries(Object.entries(selectedRecord).map(([key, value]) => [key, String(value ?? "")]))}
+          onClose={() => setEditingStudent(false)}
+          onSubmit={async (values) => {
+            await onEditStudent(String(selectedRecord.id), values);
+            const editableFields = ["admissionNumber", "studentId", "name", "className", "stream", "gender", "guardian", "guardianPhone"];
+            setSelectedRecord((current) => current ? { ...current, ...Object.fromEntries(editableFields.map((field) => [field, values[field]])) } : current);
+            setEditingStudent(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
