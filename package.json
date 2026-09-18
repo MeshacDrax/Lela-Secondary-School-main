@@ -1,0 +1,28 @@
+{
+  "name": "lela-secondary-school-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack school management system for Lela Secondary School.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,yellow \"npm --workspace @lela/api run dev\" \"npm --workspace @lela/web run dev\"",
+    "dev:api": "npm --workspace @lela/api run dev",
+    "dev:web": "npm --workspace @lela/web run dev",
+    "prebuild": "npm --workspace @lela/shared run build",
+    "build": "npm --workspaces --if-present run build",
+    "prelint": "npm --workspace @lela/shared run build",
+    "lint": "npm --workspaces --if-present run lint",
+    "seed": "npm --workspace @lela/api run seed",
+    "prisma:generate": "npm --workspace @lela/api run prisma:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
