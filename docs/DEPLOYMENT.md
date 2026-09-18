@@ -59,6 +59,20 @@ Frontend:
 6. Configure HTTPS, CORS, and secure cookies/session policy if switching to cookie auth.
 7. Configure backups, monitoring, and log retention.
 
+## Vercel
+
+This repository is configured as a single Vercel project. The Vite frontend is
+served from `apps/web/dist`, while `/api/*` is handled by the Express function
+in `api/[...path].ts`.
+
+1. Import the repository into Vercel with the repository root as the project root.
+2. Keep the generated build settings from `vercel.json`.
+3. Add `JWT_SECRET` and `WEB_ORIGIN` in the Vercel environment settings. Set
+	`DATABASE_URL` when connecting the Prisma schema to PostgreSQL.
+4. Leave `VITE_API_BASE_URL` empty for the same-project API, or set it to an
+	externally deployed API origin.
+5. Deploy. The frontend and API will share the same Vercel domain.
+
 ## Recommended Production Hardening
 
 - Serve the frontend through a CDN.
